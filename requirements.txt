@@ -8,3 +8,4 @@ imageio
 imageio-ffmpeg
 opencv-python-headless
 gunicorn
+flask-cors

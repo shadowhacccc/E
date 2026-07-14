@@ -4,12 +4,14 @@ import time
 import cv2
 import numpy as np
 from flask import Flask, render_template, request, send_file, jsonify, session
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import moviepy.editor as mp
 from moviepy.video.fx.all import fadein, fadeout
 from groq import Groq
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = 'shadow_video_replicator_2026_ultra_secret'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['OUTPUT_FOLDER'] = 'output'
