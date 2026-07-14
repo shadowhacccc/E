@@ -516,11 +516,15 @@ def apply_editing_plan(video_path, plan, output_path):
         duration = text_data.get('duration', 5)
         opacity = text_data.get('opacity', 1.0)
 
-        txt_clip = mp.TextClip(
-            txt, fontsize=fontsize, color=color, font='Arial-Bold',
-            stroke_color='black', stroke_width=2, method='caption',
-            size=(clip.w * 0.8, None)
-        )
+        try:
+            txt_clip = mp.TextClip(
+                txt, fontsize=fontsize, color=color, font='Arial-Bold',
+                stroke_color='black', stroke_width=2, method='caption',
+                size=(clip.w * 0.8, None)
+            )
+        except Exception as e:
+            print(f"TextClip error (likely ImageMagick missing): {e}")
+            continue
 
         if pos == 'top':
             txt_clip = txt_clip.set_position(('center', 50))
@@ -811,4 +815,5 @@ def get_history():
     return jsonify({'history': history})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=True, host='0.0.0.0', port=port)
