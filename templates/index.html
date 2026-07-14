@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shadow AI Video Replicator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #e94560;
+            --primary-dark: #c73e54;
+            --secondary: #0f3460;
+            --accent: #00d4aa;
+            --bg: #0a0a0f;
+            --card: #12121a;
+            --card-hover: #1a1a25;
+            --text: #ffffff;
+            --text-muted: #8b8b9a;
+            --border: rgba(255,255,255,0.08);
+            --success: #00d4aa;
+            --error: #ff4757;
+            --warning: #ffa502;
+            --info: #3498db;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html { font-size: 16px; touch-action: manipulation; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+
+        .bg-animation { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; overflow: hidden; }
+        .bg-animation::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 20% 80%, rgba(233,69,96,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(0,212,170,0.06) 0%, transparent 50%), radial-gradient(circle at 50% 50%, rgba(15,52,96,0.1) 0%, transparent 60%); animation: bgFloat 20s ease-in-out infinite; }
+        @keyframes bgFloat { 0%,100% { transform: translate(0,0) rotate(0deg); } 33% { transform: translate(30px,-30px) rotate(1deg); } 66% { transform: translate(-20px,20px) rotate(-1deg); } }
+        .grid-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 60px 60px; pointer-events: none; z-index: 1; }
+
+        .app-container { position: relative; z-index: 2; max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 100px; }
+
+        /* Header */
+        .header { padding: 24px 20px 16px; text-align: center; }
+        .logo-icon { width: 64px; height: 64px; background: linear-gradient(135deg, var(--primary), #ff6b6b); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; box-shadow: 0 8px 32px rgba(233,69,96,0.3); animation: logoPulse 3s ease-in-out infinite; }
+        @keyframes logoPulse { 0%,100% { transform: scale(1); box-shadow: 0 8px 32px rgba(233,69,96,0.3); } 50% { transform: scale(1.05); box-shadow: 0 12px 40px rgba(233,69,96,0.5); } }
+        .header h1 { font-size: 1.5rem; font-weight: 800; background: linear-gradient(90deg, var(--text), var(--primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 6px; }
+        .header p { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; }
+
+        /* Stepper */
+        .stepper { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 20px 24px; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; }
+        .step { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .step-circle { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; transition: all 0.3s; }
+        .step-circle.pending { background: rgba(255,255,255,0.05); color: var(--text-muted); border: 2px solid var(--border); }
+        .step-circle.active { background: linear-gradient(135deg, var(--primary), #ff6b6b); color: white; box-shadow: 0 4px 16px rgba(233,69,96,0.4); animation: stepPulse 2s infinite; }
+        .step-circle.completed { background: var(--success); color: white; }
+        @keyframes stepPulse { 0%,100% { box-shadow: 0 4px 16px rgba(233,69,96,0.4); } 50% { box-shadow: 0 4px 24px rgba(233,69,96,0.6); } }
+        .step-label { font-size: 0.65rem; color: var(--text-muted); font-weight: 500; }
+        .step-label.active { color: var(--primary); }
+        .step-connector { width: 30px; height: 2px; background: var(--border); border-radius: 2px; }
+        .step-connector.completed { background: var(--success); }
+
+        /* Sections */
+        .section { display: none; margin: 0 16px; animation: fadeInUp 0.5s ease; }
+        .section.active { display: block; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .section-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+        .section-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 20px; }
+
+        /* Upload Cards */
+        .upload-grid { display: flex; flex-direction: column; gap: 12px; }
+        .upload-card { background: var(--card); border: 2px dashed var(--border); border-radius: 24px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.4s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; }
+        .upload-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, rgba(233,69,96,0.05), rgba(0,212,170,0.05)); opacity: 0; transition: opacity 0.3s; }
+        .upload-card:hover::before, .upload-card.dragover::before { opacity: 1; }
+        .upload-card:hover, .upload-card.dragover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(233,69,96,0.15); }
+        .upload-card.has-file { border-color: var(--success); border-style: solid; background: linear-gradient(135deg, rgba(0,212,170,0.05), rgba(0,212,170,0.02)); }
+        .upload-card input { position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; }
+        .upload-icon { width: 52px; height: 52px; background: linear-gradient(135deg, rgba(233,69,96,0.2), rgba(233,69,96,0.1)); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; font-size: 22px; position: relative; z-index: 1; }
+        .upload-card.has-file .upload-icon { background: linear-gradient(135deg, rgba(0,212,170,0.2), rgba(0,212,170,0.1)); }
+        .upload-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; position: relative; z-index: 1; }
+        .upload-subtitle { font-size: 0.72rem; color: var(--text-muted); position: relative; z-index: 1; }
+        .file-preview { display: none; margin-top: 14px; padding: 10px; background: rgba(0,212,170,0.08); border-radius: 12px; position: relative; z-index: 1; }
+        .file-preview.show { display: flex; align-items: center; gap: 10px; animation: fadeInUp 0.3s ease; }
+        .file-icon { width: 36px; height: 36px; background: rgba(0,212,170,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .file-info { flex: 1; text-align: left; }
+        .file-name { font-size: 0.8rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+        .file-size { font-size: 0.68rem; color: var(--text-muted); }
+        .file-remove { background: rgba(255,71,87,0.1); border: none; border-radius: 8px; padding: 6px; color: var(--error); cursor: pointer; font-size: 12px; transition: all 0.3s; }
+        .file-remove:active { transform: scale(0.9); }
+
+        /* Buttons */
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 18px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.4s; display: flex; align-items: center; justify-content: center; gap: 8px; position: relative; overflow: hidden; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary), #ff6b6b); color: white; }
+        .btn-primary::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: left 0.5s; }
+        .btn-primary:hover::before { left: 100%; }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+        .btn-secondary:active { background: rgba(255,255,255,0.05); transform: scale(0.98); }
+
+        /* Analysis Results */
+        .analysis-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; margin-bottom: 16px; }
+        .analysis-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .analysis-icon { width: 44px; height: 44px; background: linear-gradient(135deg, rgba(0,212,170,0.2), rgba(0,212,170,0.1)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .analysis-title { font-size: 0.95rem; font-weight: 700; }
+        .analysis-subtitle { font-size: 0.75rem; color: var(--text-muted); }
+
+        .detected-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; }
+        .detected-icon { width: 32px; height: 32px; background: rgba(233,69,96,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+        .detected-text { flex: 1; font-size: 0.8rem; }
+        .detected-value { font-size: 0.75rem; color: var(--text-muted); }
+
+        /* Preferences Form */
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+        .form-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; color: var(--text); font-size: 0.9rem; outline: none; transition: all 0.3s; font-family: 'Inter', sans-serif; }
+        .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(233,69,96,0.1); }
+        .form-input::placeholder { color: rgba(139,139,154,0.4); }
+
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .toggle-row:last-child { border-bottom: none; }
+        .toggle-label { font-size: 0.85rem; font-weight: 500; }
+        .toggle-desc { font-size: 0.7rem; color: var(--text-muted); }
+        .toggle-switch { position: relative; width: 48px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.1); border-radius: 26px; transition: 0.3s; }
+        .toggle-slider::before { position: absolute; content: ''; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+        .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(22px); }
+
+        .position-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+        .position-btn { padding: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; color: var(--text-muted); font-size: 0.75rem; cursor: pointer; transition: all 0.3s; }
+        .position-btn:hover, .position-btn.selected { background: rgba(233,69,96,0.1); border-color: var(--primary); color: var(--primary); }
+
+        /* Progress */
+        .progress-container { display: none; margin: 0 16px 20px; background: var(--card); border-radius: 20px; padding: 20px; border: 1px solid var(--border); }
+        .progress-container.show { display: block; animation: fadeInUp 0.5s ease; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .progress-title { font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .progress-percent { font-size: 0.85rem; font-weight: 700; color: var(--primary); }
+        .progress-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #ff6b6b); border-radius: 10px; width: 0%; transition: width 0.5s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; }
+        .progress-bar-fill::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .progress-steps { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .progress-step { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--text-muted); transition: all 0.3s; }
+        .progress-step.active { color: var(--text); }
+        .progress-step.completed { color: var(--success); }
+        .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.3s; flex-shrink: 0; }
+        .progress-step.active .step-dot { background: var(--primary); box-shadow: 0 0 8px rgba(233,69,96,0.5); animation: pulse 1.5s infinite; }
+        .progress-step.completed .step-dot { background: var(--success); }
+        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+
+        /* Result */
+        .result-container { display: none; margin: 0 16px 20px; background: var(--card); border: 1px solid rgba(0,212,170,0.2); border-radius: 24px; padding: 24px; text-align: center; animation: fadeInUp 0.5s ease; }
+        .result-container.show { display: block; }
+        .result-icon { width: 64px; height: 64px; background: linear-gradient(135deg, rgba(0,212,170,0.2), rgba(0,212,170,0.1)); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 28px; animation: successPop 0.5s cubic-bezier(0.68,-0.55,0.265,1.55); }
+        @keyframes successPop { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        .result-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+        .result-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 20px; }
+        .result-actions { display: flex; gap: 10px; }
+
+        .btn-success { flex: 1; padding: 14px; background: linear-gradient(135deg, var(--success), #00b894); border: none; border-radius: 16px; color: white; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: all 0.3s; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-success:active { transform: scale(0.97); }
+
+        /* Error Toast */
+        .error-toast { display: none; position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--error); color: white; padding: 14px 24px; border-radius: 16px; font-size: 0.85rem; font-weight: 600; z-index: 1000; box-shadow: 0 8px 32px rgba(255,71,87,0.3); animation: toastIn 0.4s cubic-bezier(0.68,-0.55,0.265,1.55) forwards; max-width: 90%; text-align: center; }
+        .error-toast.show { display: block; }
+        @keyframes toastIn { to { transform: translateX(-50%) translateY(0); } }
+
+        /* Bottom Nav */
+        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: rgba(18,18,26,0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border); padding: 12px 24px 24px; display: flex; justify-content: space-around; align-items: center; z-index: 100; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); text-decoration: none; font-size: 0.65rem; font-weight: 500; transition: all 0.3s; cursor: pointer; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item:active { transform: scale(0.9); }
+        .nav-icon { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+
+        /* API Section */
+        .api-section { margin: 0 16px 20px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 16px; }
+        .api-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .api-header h3 { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+        .api-toggle { background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; transition: transform 0.3s; }
+        .api-toggle.rotated { transform: rotate(180deg); }
+        .api-content { margin-top: 12px; display: none; }
+        .api-content.show { display: block; animation: slideDown 0.3s ease; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .api-input-wrapper { display: flex; gap: 8px; }
+        .api-input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; color: var(--text); font-size: 0.8rem; font-family: 'Courier New', monospace; outline: none; }
+        .api-input:focus { border-color: var(--primary); }
+        .api-btn { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); border: none; border-radius: 12px; padding: 12px 20px; color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; }
+        .api-status { margin-top: 8px; font-size: 0.75rem; padding: 6px 10px; border-radius: 8px; display: none; }
+        .api-status.success { display: block; background: rgba(0,212,170,0.1); color: var(--success); border: 1px solid rgba(0,212,170,0.2); }
+        .api-status.error { display: block; background: rgba(255,71,87,0.1); color: var(--error); border: 1px solid rgba(255,71,87,0.2); }
+
+        /* Plan Preview */
+        .plan-preview { display: none; margin: 0 16px 20px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 20px; }
+        .plan-preview.show { display: block; animation: fadeInUp 0.3s ease; }
+        .plan-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .plan-title { font-size: 0.85rem; font-weight: 600; color: var(--primary); }
+        .plan-badge { font-size: 0.7rem; padding: 4px 10px; background: rgba(233,69,96,0.1); border: 1px solid rgba(233,69,96,0.2); border-radius: 20px; color: var(--primary); }
+        .plan-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; font-size: 0.8rem; }
+        .plan-item-icon { width: 28px; height: 28px; background: rgba(233,69,96,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+
+        @media (max-width: 480px) { .app-container { max-width: 100%; } }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="grid-overlay"></div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-icon">🎬</div>
+            <h1>Shadow AI Replicator</h1>
+            <p>Upload 2 videos → AI copies the editing style</p>
+        </div>
+
+        <!-- API Key -->
+        <div class="api-section" id="apiSection">
+            <div class="api-header" onclick="toggleApiSection()">
+                <h3>🔑 Groq API Key (Optional)</h3>
+                <button class="api-toggle" id="apiToggle">▼</button>
+            </div>
+            <div class="api-content" id="apiContent">
+                <div class="api-input-wrapper">
+                    <input type="password" class="api-input" id="apiKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxx">
+                    <button class="api-btn" onclick="saveApiKey(event)">Save</button>
+                </div>
+                <div class="api-status" id="apiStatus"></div>
+            </div>
+        </div>
+
+        <!-- Stepper -->
+        <div class="stepper">
+            <div class="step">
+                <div class="step-circle active" id="step1Circle">1</div>
+                <span class="step-label active" id="step1Label">Upload</span>
+            </div>
+            <div class="step-connector" id="conn1"></div>
+            <div class="step">
+                <div class="step-circle pending" id="step2Circle">2</div>
+                <span class="step-label" id="step2Label">Analyze</span>
+            </div>
+            <div class="step-connector" id="conn2"></div>
+            <div class="step">
+                <div class="step-circle pending" id="step3Circle">3</div>
+                <span class="step-label" id="step3Label">Edit</span>
+            </div>
+        </div>
+
+        <!-- STEP 1: Upload -->
+        <div class="section active" id="step1Section">
+            <div class="section-title">📹 Upload Videos</div>
+            <div class="section-desc">Upload your original video and the reference video you want to copy</div>
+
+            <div class="upload-grid">
+                <div class="upload-card" id="originalCard">
+                    <input type="file" id="originalInput" accept="video/*" onchange="handleOriginalSelect(event)">
+                    <div class="upload-icon">🎥</div>
+                    <div class="upload-title">Your Original Video</div>
+                    <div class="upload-subtitle">This will be edited</div>
+                    <div class="file-preview" id="originalPreview">
+                        <div class="file-icon">🎬</div>
+                        <div class="file-info">
+                            <div class="file-name" id="originalName"></div>
+                            <div class="file-size" id="originalSize"></div>
+                        </div>
+                        <button class="file-remove" onclick="removeOriginal(event)">✕</button>
+                    </div>
+                </div>
+
+                <div class="upload-card" id="referenceCard">
+                    <input type="file" id="referenceInput" accept="video/*" onchange="handleReferenceSelect(event)">
+                    <div class="upload-icon">🎯</div>
+                    <div class="upload-title">Reference Video</div>
+                    <div class="upload-subtitle">Copy this editing style</div>
+                    <div class="file-preview" id="referencePreview">
+                        <div class="file-icon">🎯</div>
+                        <div class="file-info">
+                            <div class="file-name" id="referenceName"></div>
+                            <div class="file-size" id="referenceSize"></div>
+                        </div>
+                        <button class="file-remove" onclick="removeReference(event)">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeVideos()">
+                    <span>🔍</span>
+                    <span>Analyze Videos</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 2: Analysis & Preferences -->
+        <div class="section" id="step2Section">
+            <div class="section-title">🔍 Analysis Results</div>
+            <div class="section-desc">AI detected these features from the reference video</div>
+
+            <div id="analysisResults"></div>
+
+            <div style="margin-top: 24px;">
+                <div class="section-title">⚙️ Customize Editing</div>
+                <div class="section-desc">Tell AI what changes you want before editing</div>
+
+                <div class="analysis-card">
+                    <div class="form-group">
+                        <label class="form-label">📝 Watermark Text</label>
+                        <input type="text" class="form-input" id="watermarkText" placeholder="Your watermark or leave empty">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">📍 Watermark Position</label>
+                        <div class="position-grid">
+                            <button class="position-btn" data-pos="top-left" onclick="selectPosition(this)">Top Left</button>
+                            <button class="position-btn selected" data-pos="bottom-right" onclick="selectPosition(this)">Bottom Right</button>
+                            <button class="position-btn" data-pos="top-right" onclick="selectPosition(this)">Top Right</button>
+                            <button class="position-btn" data-pos="bottom-left" onclick="selectPosition(this)">Bottom Left</button>
+                            <button class="position-btn" data-pos="center" onclick="selectPosition(this)">Center</button>
+                            <button class="position-btn" data-pos="bottom" onclick="selectPosition(this)">Bottom</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">💬 Caption Text (Optional)</label>
+                        <input type="text" class="form-input" id="captionText" placeholder="Text to overlay on video">
+                    </div>
+                </div>
+
+                <div class="analysis-card">
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">🎨 Match Color Grading</div>
+                            <div class="toggle-desc">Apply same colors as reference</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="colorMatch" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">✨ Match Transitions</div>
+                            <div class="toggle-desc">Copy fade in/out effects</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="transitionMatch" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">📝 Match Text Style</div>
+                            <div class="toggle-desc">Copy text positions & fonts</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="textMatch" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">🔊 Match Audio</div>
+                            <div class="toggle-desc">Copy volume levels</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="audioMatch" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label class="form-label">📝 Custom Notes for AI</label>
+                    <textarea class="form-input" id="customNotes" rows="3" placeholder="Any special requests? e.g., 'Make it more dramatic', 'Add slow motion at start', 'Remove background noise'"></textarea>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-primary" id="editBtn" onclick="startEditing()">
+                        <span>✨</span>
+                        <span>Start AI Editing</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 3: Progress & Result -->
+        <div class="section" id="step3Section">
+            <div class="section-title">✨ AI Editing</div>
+            <div class="section-desc">AI is replicating the reference video style</div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-header">
+                    <div class="progress-title"><span>⚡</span><span>Processing</span></div>
+                    <div class="progress-percent" id="progressPercent">0%</div>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+                <div class="progress-steps">
+                    <div class="progress-step" id="pstep1"><div class="step-dot"></div><span>Analyzing reference style</span></div>
+                    <div class="progress-step" id="pstep2"><div class="step-dot"></div><span>Generating editing plan</span></div>
+                    <div class="progress-step" id="pstep3"><div class="step-dot"></div><span>Applying color grading</span></div>
+                    <div class="progress-step" id="pstep4"><div class="step-dot"></div><span>Adding effects & text</span></div>
+                    <div class="progress-step" id="pstep5"><div class="step-dot"></div><span>Rendering final video</span></div>
+                </div>
+            </div>
+
+            <div class="plan-preview" id="planPreview">
+                <div class="plan-header">
+                    <span class="plan-title">📋 Editing Plan</span>
+                    <span class="plan-badge" id="planBadge">AI Generated</span>
+                </div>
+                <div id="planList"></div>
+            </div>
+
+            <div class="result-container" id="resultContainer">
+                <div class="result-icon">🎉</div>
+                <div class="result-title">Video Replicated!</div>
+                <div class="result-desc" id="resultDesc">Your video has been edited to match the reference style</div>
+                <div class="result-actions">
+                    <a href="#" class="btn-success" id="downloadBtn" download>
+                        <span>⬇️</span><span>Download</span>
+                    </a>
+                    <a href="#" class="btn btn-secondary" id="previewBtn" target="_blank">
+                        <span>👁️</span><span>Preview</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="error-toast" id="errorToast"></div>
+
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="goToStep(1)">
+            <div class="nav-icon">🏠</div>
+            <span>Upload</span>
+        </div>
+        <div class="nav-item" onclick="goToStep(2)">
+            <div class="nav-icon">🔍</div>
+            <span>Analyze</span>
+        </div>
+        <div class="nav-item" onclick="goToStep(3)">
+            <div class="nav-icon">✨</div>
+            <span>Edit</span>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let analysisId = null;
+        let selectedWatermarkPos = 'bottom-right';
+        let progressInterval = null;
+
+        // ========== API ==========
+        function toggleApiSection() {
+            const content = document.getElementById('apiContent');
+            const toggle = document.getElementById('apiToggle');
+            content.classList.toggle('show');
+            toggle.classList.toggle('rotated');
+        }
+
+        async function saveApiKey(e) {
+            e.stopPropagation();
+            const key = document.getElementById('apiKeyInput').value.trim();
+            const status = document.getElementById('apiStatus');
+            if (!key || !key.startsWith('gsk_')) {
+                status.className = 'api-status error';
+                status.textContent = '❌ Invalid API Key';
+                return;
+            }
+            try {
+                const res = await fetch('/set_api_key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: key })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    status.className = 'api-status success';
+                    status.textContent = '✅ API Key saved!';
+                } else {
+                    status.className = 'api-status error';
+                    status.textContent = '❌ ' + data.error;
+                }
+            } catch (err) {
+                status.className = 'api-status error';
+                status.textContent = '❌ Network error';
+            }
+        }
+
+        // ========== FILE HANDLERS ==========
+        function handleOriginalSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            document.getElementById('originalName').textContent = file.name;
+            document.getElementById('originalSize').textContent = formatSize(file.size);
+            document.getElementById('originalPreview').classList.add('show');
+            document.getElementById('originalCard').classList.add('has-file');
+        }
+
+        function removeOriginal(e) {
+            e.stopPropagation();
+            document.getElementById('originalInput').value = '';
+            document.getElementById('originalPreview').classList.remove('show');
+            document.getElementById('originalCard').classList.remove('has-file');
+        }
+
+        function handleReferenceSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            document.getElementById('referenceName').textContent = file.name;
+            document.getElementById('referenceSize').textContent = formatSize(file.size);
+            document.getElementById('referencePreview').classList.add('show');
+            document.getElementById('referenceCard').classList.add('has-file');
+        }
+
+        function removeReference(e) {
+            e.stopPropagation();
+            document.getElementById('referenceInput').value = '';
+            document.getElementById('referencePreview').classList.remove('show');
+            document.getElementById('referenceCard').classList.remove('has-file');
+        }
+
+        function formatSize(bytes) {
+            if (!bytes) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // ========== STEP NAVIGATION ==========
+        function goToStep(step) {
+            if (step > currentStep && step !== 1) return;
+
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById('step' + step + 'Section').classList.add('active');
+
+            // Update stepper
+            for (let i = 1; i <= 3; i++) {
+                const circle = document.getElementById('step' + i + 'Circle');
+                const label = document.getElementById('step' + i + 'Label');
+                const conn = document.getElementById('conn' + (i-1));
+
+                if (i < step) {
+                    circle.className = 'step-circle completed';
+                    circle.textContent = '✓';
+                    label.className = 'step-label';
+                    if (conn) conn.classList.add('completed');
+                } else if (i === step) {
+                    circle.className = 'step-circle active';
+                    circle.textContent = i;
+                    label.className = 'step-label active';
+                    if (conn) conn.classList.add('completed');
+                } else {
+                    circle.className = 'step-circle pending';
+                    circle.textContent = i;
+                    label.className = 'step-label';
+                }
+            }
+
+            currentStep = step;
+        }
+
+        // ========== ANALYZE ==========
+        async function analyzeVideos() {
+            const original = document.getElementById('originalInput');
+            const reference = document.getElementById('referenceInput');
+            const btn = document.getElementById('analyzeBtn');
+
+            if (!original.files[0]) { showError('🎥 Upload your original video'); return; }
+            if (!reference.files[0]) { showError('🎯 Upload reference video'); return; }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span><span>Analyzing...</span>';
+
+            const formData = new FormData();
+            formData.append('original_video', original.files[0]);
+            formData.append('reference_video', reference.files[0]);
+
+            try {
+                const response = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (data.success) {
+                    analysisId = data.analysis_id;
+                    displayAnalysis(data);
+                    goToStep(2);
+                } else {
+                    showError(data.error || 'Analysis failed');
+                }
+            } catch (err) {
+                showError('Network error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>🔍</span><span>Analyze Videos</span>';
+            }
+        }
+
+        function displayAnalysis(data) {
+            const container = document.getElementById('analysisResults');
+            const detected = data.detected_effects.reference;
+            const summary = data.summary;
+
+            let html = `
+                <div class="analysis-card">
+                    <div class="analysis-header">
+                        <div class="analysis-icon">🎯</div>
+                        <div>
+                            <div class="analysis-title">${summary.title || 'Reference Analysis'}</div>
+                            <div class="analysis-subtitle">${summary.description || 'Style detected'}</div>
+                        </div>
+                    </div>
+                    <div class="detected-item">
+                        <div class="detected-icon">✂️</div>
+                        <div class="detected-text">Scene Cuts</div>
+                        <div class="detected-value">${detected.scene_cuts} detected</div>
+                    </div>
+                    <div class="detected-item">
+                        <div class="detected-icon">✨</div>
+                        <div class="detected-text">Transitions</div>
+                        <div class="detected-value">${detected.transitions} detected</div>
+                    </div>
+                    <div class="detected-item">
+                        <div class="detected-icon">📝</div>
+                        <div class="detected-text">Text Regions</div>
+                        <div class="detected-value">${detected.text_regions} detected</div>
+                    </div>
+                    <div class="detected-item">
+                        <div class="detected-icon">🎨</div>
+                        <div class="detected-text">Color Style</div>
+                        <div class="detected-value">${detected.color_style}</div>
+                    </div>
+                    <div class="detected-item">
+                        <div class="detected-icon">🔊</div>
+                        <div class="detected-text">Audio</div>
+                        <div class="detected-value">${detected.has_audio ? 'Yes' : 'No'}</div>
+                    </div>
+                </div>
+
+                <div class="analysis-card">
+                    <div class="analysis-header">
+                        <div class="analysis-icon">💡</div>
+                        <div>
+                            <div class="analysis-title">AI Suggestions</div>
+                            <div class="analysis-subtitle">Recommended edits</div>
+                        </div>
+                    </div>
+            `;
+
+            const suggestions = summary.suggestions || ['Apply matching edits', 'Add text overlays'];
+            suggestions.forEach(s => {
+                html += `<div class="detected-item"><div class="detected-icon">⭐</div><div class="detected-text">${s}</div></div>`;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // ========== POSITION SELECTOR ==========
+        function selectPosition(btn) {
+            document.querySelectorAll('.position-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedWatermarkPos = btn.dataset.pos;
+        }
+
+        // ========== EDITING ==========
+        async function startEditing() {
+            if (!analysisId) { showError('Please analyze videos first'); return; }
+
+            const btn = document.getElementById('editBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span><span>Preparing...</span>';
+
+            // Save preferences
+            const preferences = {
+                analysis_id: analysisId,
+                watermark_text: document.getElementById('watermarkText').value,
+                watermark_position: selectedWatermarkPos,
+                caption_text: document.getElementById('captionText').value,
+                color_match: document.getElementById('colorMatch').checked,
+                transition_match: document.getElementById('transitionMatch').checked,
+                text_style_match: document.getElementById('textMatch').checked,
+                audio_match: document.getElementById('audioMatch').checked,
+                custom_notes: document.getElementById('customNotes').value
+            };
+
+            try {
+                const prefRes = await fetch('/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(preferences)
+                });
+                const prefData = await prefRes.json();
+
+                if (!prefData.success) {
+                    showError(prefData.error || 'Failed to save preferences');
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>✨</span><span>Start AI Editing</span>';
+                    return;
+                }
+
+                // Show plan
+                displayPlan(prefData.plan);
+
+                // Go to step 3
+                goToStep(3);
+
+                // Start progress
+                document.getElementById('progressContainer').classList.add('show');
+                startProgress();
+
+                // Start editing
+                const editRes = await fetch('/edit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ analysis_id: analysisId })
+                });
+                const editData = await editRes.json();
+
+                if (editData.success) {
+                    completeProgress();
+                    showResult(editData);
+                } else {
+                    showError(editData.error || 'Editing failed');
+                    resetProgress();
+                }
+            } catch (err) {
+                showError('Error: ' + err.message);
+                resetProgress();
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>✨</span><span>Start AI Editing</span>';
+            }
+        }
+
+        function displayPlan(plan) {
+            const preview = document.getElementById('planPreview');
+            const list = document.getElementById('planList');
+
+            const icons = {
+                grayscale: '⚫', sepia: '🎞️', brightness: '☀️', contrast: '⚡',
+                fade_in: '✨', fade_out: '🌅', zoom_in: '🔍', zoom_out: '🔎',
+                speed: '🐌', text_overlay: '📝', volume: '🔊'
+            };
+
+            let html = '';
+
+            // Color grading
+            const color = plan.color_grading || {};
+            if (color.grayscale) html += createPlanItem('⚫', 'Black & White', 'Apply grayscale filter');
+            if (color.sepia) html += createPlanItem('🎞️', 'Sepia Tone', 'Old film look');
+            if (color.brightness) html += createPlanItem('☀️', 'Brightness', `Adjust to ${color.brightness}x`);
+            if (color.contrast) html += createPlanItem('⚡', 'Contrast', `Adjust to ${color.contrast}x`);
+            if (color.warmth) html += createPlanItem('🌡️', 'Warm Tone', 'Orange/warm color temperature');
+            if (color.cool) html += createPlanItem('❄️', 'Cool Tone', 'Blue/cool color temperature');
+
+            // Effects
+            (plan.effects_plan || []).forEach(effect => {
+                const icon = icons[effect.type] || '✨';
+                const name = effect.type.replace(/_/g, ' ').toUpperCase();
+                html += createPlanItem(icon, name, `At ${effect.timestamp}s`);
+            });
+
+            // Text overlays
+            (plan.text_overlays || []).forEach(text => {
+                const type = text.is_watermark ? 'Watermark' : 'Caption';
+                html += createPlanItem('📝', type, `"${text.text}" at ${text.position}`);
+            });
+
+            list.innerHTML = html || createPlanItem('✨', 'Standard Edit', 'Apply basic enhancements');
+            preview.classList.add('show');
+        }
+
+        function createPlanItem(icon, title, desc) {
+            return `<div class="plan-item"><div class="plan-item-icon">${icon}</div><div class="plan-text"><div style="font-weight:600">${title}</div><div style="font-size:0.75rem;color:var(--text-muted)">${desc}</div></div></div>`;
+        }
+
+        // ========== PROGRESS ==========
+        function startProgress() {
+            let progress = 0;
+            const bar = document.getElementById('progressBar');
+            const percent = document.getElementById('progressPercent');
+
+            updatePStep(1, 'active');
+
+            progressInterval = setInterval(() => {
+                progress += Math.random() * 2.5;
+                if (progress > 95) progress = 95;
+                bar.style.width = progress + '%';
+                percent.textContent = Math.floor(progress) + '%';
+
+                if (progress > 15) updatePStep(2, 'active');
+                if (progress > 35) updatePStep(3, 'active');
+                if (progress > 55) updatePStep(4, 'active');
+                if (progress > 75) updatePStep(5, 'active');
+            }, 600);
+        }
+
+        function completeProgress() {
+            clearInterval(progressInterval);
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressPercent').textContent = '100%';
+            setTimeout(() => {
+                document.getElementById('progressContainer').classList.remove('show');
+                resetPSteps();
+            }, 800);
+        }
+
+        function resetProgress() {
+            clearInterval(progressInterval);
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressPercent').textContent = '0%';
+            document.getElementById('progressContainer').classList.remove('show');
+            resetPSteps();
+        }
+
+        function updatePStep(num, state) {
+            for (let i = 1; i <= 5; i++) {
+                const step = document.getElementById('pstep' + i);
+                if (i < num) step.className = 'progress-step completed';
+                else if (i === num) step.className = 'progress-step ' + state;
+            }
+        }
+
+        function resetPSteps() {
+            for (let i = 1; i <= 5; i++) {
+                document.getElementById('pstep' + i).className = 'progress-step';
+            }
+        }
+
+        // ========== RESULT ==========
+        function showResult(data) {
+            const container = document.getElementById('resultContainer');
+            const desc = document.getElementById('resultDesc');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const previewBtn = document.getElementById('previewBtn');
+
+            const summary = data.plan_summary;
+            desc.textContent = `Applied ${summary.effects_applied} effects, ${summary.text_overlays} text overlays, and color grading`;
+            downloadBtn.href = data.download_url;
+            previewBtn.href = data.preview_url;
+
+            container.classList.add('show');
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // ========== ERROR ==========
+        function showError(msg) {
+            const toast = document.getElementById('errorToast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 4000);
+        }
+
+        // Drag & drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+            document.body.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false);
+        });
+    </script>
+</body>
+</html>
